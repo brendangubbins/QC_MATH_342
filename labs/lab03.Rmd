@@ -1,8 +1,10 @@
 ---
 title: "Lab 3"
 author: "Brendan Gubbins"
-output: pdf_document
 date: "11:59PM March 4, 2021"
+output:
+  html_document:
+    df_print: paged
 ---
 
 
@@ -435,8 +437,10 @@ Write a function `my_ols` that takes in `X`, a matrix with with p columns repres
 
 ```{r}
 my_ols = function(X, y){
+  X = cbind(1, X)
   n = length(y)
   p = ncol(X)
+  
   if (n != nrow(X)) {
     stop("X # rows and y must be same length.")  
   }
@@ -477,7 +481,13 @@ Verify that the OLS coefficients for the `Type` of cars in the cars dataset give
 
 ```{r}
 cars = MASS::Cars93
-lm(Price ~ Type, cars)
+X_mm = model.matrix(~Type, cars)[,2:6]
+
+mod = lm(Price ~ Type, cars)
+X = my_ols(X_mm, cars$Price)
+
+X$b
+mod
 ```
 
 
@@ -485,10 +495,13 @@ Create a prediction method `g` that takes in a vector `x_star` and the dataset $
 
 ```{r}
 g = function(x_star, X, y){
-  b = solve(t(X) %*% X) %*% t(X) %*% y
-  y_hat = x_star %*% b
+  b = my_ols(X,y)$b
+  y_hat = c(1,x_star) %*% b
   y_hat
 }
+
+g(X_mm[5,], X_mm, cars$Price)
+predict(mod, cars[5,])
 ```
 
 
