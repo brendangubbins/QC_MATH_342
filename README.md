@@ -2,8 +2,10 @@
 
 Lab Assignments for Adam Kapelner's Math 342W
 
+* Lab 09
+  - [(Code)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab09.Rmd) [(PDF)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab09.pdf)
 * Lab 08
-  - [(PDF)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab08.pdf)
+  - [(Code)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab08.Rmd) [(PDF)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab08.pdf)
 * Lab 07
   - [(Code)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab07.Rmd) [(PDF)](https://github.com/brendangubbins/QC_MATH_342/blob/master/labs/lab07.pdf)
 * Lab 06
