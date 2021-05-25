@@ -3,7 +3,7 @@
 Modeling Queens Apartment prices using Random Forest
 
 * Project
-  - [(Code)]()
+  - [(Code)](https://github.com/brendangubbins/QC_MATH_342/blob/master/final_project/finalproject.Rmd)
 
 Lab Assignments for Adam Kapelner's Math 342W
 
