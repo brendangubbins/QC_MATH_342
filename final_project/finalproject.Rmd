@@ -55,7 +55,7 @@ housing_data %<>%
 housing_data = left_join(housing_data, nyc_zip_codes, by = "zip_code")
 ```
 
-## Converting `date_of_sale` into `day_of_sale`, `month_of_sale`. Also `approx_year_built` into `decade_built`
+## Converting `date_of_sale` into `day_of_sale`, `month_of_sale`
 
 ```{r}
 pacman::p_load(lubridate)
