@@ -1,0 +1,288 @@
+---
+title: "Final Project"
+author: "Brendan Gubbins"
+date: "5/25/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+
+---
+
+## Loading the data
+
+```{r}
+rm(list=setdiff(ls(), c("lat", "lon")))
+
+pacman::p_load(tidyverse, magrittr, data.table, R.utils)
+housing = read.csv("C:\\Users\\Brendan Gubbins\\Desktop\\QC_MATH_342W_Spring_2021\\writing_assignments\\housing_data_2016_2017.csv")
+housing = as_tibble(housing)
+```
+
+## Feature Selection
+
+```{r}
+housing_data = housing %>%
+  select(approx_year_built, cats_allowed, common_charges, coop_condo, date_of_sale, dining_room_type, 
+         dogs_allowed, fuel_type, full_address_or_zip_code, garage_exists, kitchen_type, 
+         maintenance_cost, num_bedrooms, num_floors_in_building, num_full_bathrooms, num_half_bathrooms,
+         parking_charges, sq_footage, total_taxes, sale_price, pct_tax_deductibl)
+
+housing %>%
+  filter(sq_footage > 6000 & !is.na(sale_price))
+
+pacman::p_load(skimr)
+skim(housing_data)
+```
+
+## Loading new data
+
+```{r}
+nyc_zip_codes = read.csv("C:\\Users\\Brendan Gubbins\\Downloads\\nyc-zip-codes.csv")
+
+nyc_zip_codes %<>%
+  select(ZipCode, Neighborhood) %>%
+  rename(zip_code = ZipCode, neighborhood = Neighborhood)
+
+# dropping an incomplete address
+housing_data %<>%
+  filter(full_address_or_zip_code != "11364")
+
+housing_data %<>%
+  mutate(zip_code = as.numeric(str_extract(substr(full_address_or_zip_code, 5, length(full_address_or_zip_code)), "[0-9]{5}")))
+
+housing_data = left_join(housing_data, nyc_zip_codes, by = "zip_code")
+```
+
+## Converting `date_of_sale` into `day_of_sale`, `month_of_sale`. Also `approx_year_built` into `decade_built`
+
+```{r}
+pacman::p_load(lubridate)
+
+housing_data %<>%
+  mutate(day_of_sale = day(mdy(date_of_sale)),
+         month_of_sale = month(mdy(date_of_sale))) %>%
+  select(-date_of_sale)
+```
+
+## Converting `cats_allowed`, `dogs_allowed` into `pets_allowed` (binary), and `garage_exists` into binary
+
+```{r}
+housing_data %<>%
+  mutate(cats_allowed = if_else(cats_allowed == "no", 0, 1)) %>%
+  mutate(dogs_allowed = if_else(dogs_allowed == "no", 0, 1)) %>%
+  mutate(garage_exists = if_else(is.na(garage_exists), 0, 1)) %>%
+  mutate(pets_allowed = if_else(cats_allowed == 1 | dogs_allowed == 1, 1, 0)) %>%
+  select(-cats_allowed, -dogs_allowed)
+```
+
+## Converting `coop_condo`, `dining_room_type`, `fuel_type`, `kitchen_type` into categorical features
+
+```{r}
+housing_data %<>%
+  mutate(coop_condo = as.factor(coop_condo))
+
+housing_data %<>%
+  mutate(dining_room_type = if_else(dining_room_type == "none" | dining_room_type == "dining area", "other", dining_room_type)) %>%
+  mutate(dining_room_type = as.factor(dining_room_type))
+
+tabulate = sort(table(housing_data$fuel_type))
+
+housing_data %<>%
+  mutate(fuel_type = if_else(fuel_type %in% names(tabulate[tabulate < 62]), "other", fuel_type))
+
+housing_data %<>%
+  mutate(fuel_type = as.factor(fuel_type))
+
+housing_data %<>%
+  mutate(kitchen_type = if_else(kitchen_type == "eat in" | kitchen_type == "Eat in" | kitchen_type == "Eat In" | kitchen_type == "eatin", "eat in", kitchen_type)) %>%
+  mutate(kitchen_type = if_else(kitchen_type == "combo" | kitchen_type == "Combo", "combo", kitchen_type)) %>%
+  mutate(kitchen_type = if_else(kitchen_type == "efficiency" | kitchen_type == "efficiemcy" | kitchen_type == "efficiency kitchen"
+                                | kitchen_type == "efficiency kitchene" | kitchen_type == "efficiency ktchen", "efficiency", kitchen_type))
+housing_data %<>%
+  mutate(kitchen_type = as.factor(kitchen_type))
+
+housing_data = housing_data[housing_data$kitchen_type != "1955",]
+```
+
+## Cleaning `parking_charges`, `total_taxes`, `common_charges`, `sale_price`, `maintenance_cost`
+
+```{r}
+housing_data %<>%
+  mutate(parking_charges = as.numeric(gsub("[\\$,]", "", parking_charges)),
+         parking_charges = if_else(is.na(parking_charges), 0, parking_charges))
+
+housing_data %<>%
+  mutate(total_taxes = as.numeric(gsub("[\\$,]", "", total_taxes)))
+
+# condos pay charges
+
+housing_data %<>%
+  mutate(common_charges = as.numeric(gsub("[\\$,]", "", common_charges)),
+         common_charges = if_else(is.na(common_charges) & coop_condo == "co-op", 0, common_charges))
+
+housing_data %<>%
+  mutate(sale_price = as.numeric(gsub("[\\$,]", "", sale_price)))
+
+housing_data = housing_data[!is.na(housing_data$sale_price),]
+
+# co-ops pay maintenance 
+
+housing_data %<>%
+  mutate(maintenance_cost = as.numeric(gsub("[\\$,]", "", maintenance_cost)),
+         maintenance_cost = if_else(is.na(maintenance_cost) & coop_condo == "condo", 0, maintenance_cost))
+```
+
+## `pct_tax_deductibl` applies to co-op only
+
+```{r}
+housing_data %<>%
+  mutate(pct_tax_deductibl = if_else(housing_data$coop_condo == "condo", 0, as.numeric(pct_tax_deductibl)))
+```
+
+## Converting `NA` half bathrooms into `0`
+
+```{r}
+housing_data %<>%
+  mutate(num_half_bathrooms = if_else(is.na(num_half_bathrooms), 0, as.numeric(num_half_bathrooms)))
+```
+
+## Converting `sq_footage` to percentiles
+
+```{r}
+# correcting an error
+housing_data %<>%
+  mutate(sq_footage = if_else(sq_footage > 6000, 1200, as.numeric(sq_footage)))
+
+housing_data %<>%
+  mutate(sq_footage = ecdf(sq_footage)(sq_footage))
+```
+
+## Geocoding
+
+```{r}
+latlon = geocode(housing_data$full_address_or_zip_code, output = "latlon")
+lat = latlon$lat
+lon = latlon$lon
+
+housing_data %<>%
+  mutate(latitude = lat,
+         longitude = lon)
+
+# grand central terminal
+gc_coords = c(40.7527, 73.9772)
+grand_central = array(NA, nrow(housing_data))
+
+for (i in 1 : nrow(housing_data)) {
+  grand_central[i] = distm(gc_coords, c(abs(housing_data$latitude[i]), abs(housing_data$longitude[i])), fun = distHaversine) / 1609
+}
+
+housing_data %<>%
+  mutate(grand_central = grand_central)
+```
+
+## Missingness Dummy Variables
+
+```{r}
+M = tbl_df(apply(is.na(housing_data), 2, as.numeric))
+colnames(M) = paste("is_missing_", colnames(housing_data), sep = "")
+M %<>% 
+  select_if(function(x){sum(x) > 0})
+
+M = tbl_df(t(unique(t(M))))
+
+housing_data %<>%
+  relocate(sale_price)
+
+housing_data = cbind(housing_data, M)
+```
+
+## Train-Test Split
+
+```{r}
+K = 5
+test_prop = 1 / K
+train_indices = sample(1 : nrow(housing_data), round((1 - test_prop) * nrow(housing_data)))
+housing_train = housing_data[train_indices, ]
+y_train = housing_train$sale_price
+X_train = housing_train
+X_train$sale_price = NULL
+test_indices = setdiff(1 : nrow(housing_data), train_indices)
+housing_test = housing_data[test_indices, ]
+y_test = housing_test$sale_price
+X_test = housing_test
+X_test$sale_price = NULL
+```
+
+## Imputation with missForest
+
+```{r}
+pacman::p_load(missForest)
+
+train_bind = cbind(X_train, sale_price = y_train)
+test_bind = cbind(X_test, sale_price = NA)
+X_bind = rbind(train_bind, test_bind)
+
+X_bind$full_address_or_zip_code = NULL
+neighborhood = X_bind$neighborhood
+X_bind$neighborhood = NULL
+
+Ximp = missForest(as.data.frame(X_bind))$ximp
+
+# if coop, discount
+Ximp %<>%
+  mutate(monthly_cost = if_else(coop_condo == "co-op", 
+                                (maintenance_cost + common_charges) * (100 - pct_tax_deductibl) / 100, 
+                                maintenance_cost + common_charges))
+
+Ximp %<>%
+  select(-sale_price, -zip_code, -pct_tax_deductibl, -is_missing_pct_tax_deductibl)
+
+Ximp = cbind(Ximp, neighborhood = as.factor(neighborhood), sale_price = X_bind$sale_price)
+
+X_train = Ximp[!is.na(Ximp$sale_price),]
+X_train$sale_price = NULL
+
+X_test = Ximp[is.na(Ximp$sale_price),]
+X_test$sale_price = NULL
+```
+
+## Regression Tree
+
+```{r}
+pacman::p_load(YARF)
+
+tree_mod = YARFCART(X_train, y_train)
+
+illustrate_trees(tree_mod, max_depth = 5, length_in_px_per_half_split = 25, open_file = TRUE)
+
+tree_mod
+```
+
+## Linear Regression
+
+```{r}
+mod = lm(y_train ~ ., X_train)
+
+summary(mod)$r.squared
+sqrt(mean(mod$residuals^2))
+
+y_hat = predict(mod, X_test)
+
+residuals = y_test - y_hat
+sqrt(mean(residuals^2))
+```
+
+## Random Forest
+
+```{r}
+rf_mod = YARF(X_train, y_train) 
+rf_mod
+
+y_hat = predict(rf_mod, X_test)
+
+residuals = y_test - y_hat
+oos_rmse = sqrt(mean(residuals^2))
+oos_rmse
+```
