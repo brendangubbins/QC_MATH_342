@@ -1,5 +1,10 @@
 # QC_MATH_342
 
+Modeling Queens Apartment prices using Random Forest
+
+* Project
+  - [(Code)]()
+
 Lab Assignments for Adam Kapelner's Math 342W
 
 * Lab 09
